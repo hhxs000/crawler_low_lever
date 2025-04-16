@@ -1,0 +1,41 @@
+import requests
+from bs4 import BeautifulSoup
+import json
+import time
+import pandas as pd
+books=[]
+for i in range(1,51):
+    #枚举URL
+    url = f"https://books.toscrape.com/catalogue/page-{i}.html"
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36"
+    }
+    try:
+        response = requests.get(url, headers=headers,timeout=10)
+        # 设置编码格式
+        response.encoding = "utf-8"
+        # 创建BeautifulSoup对象
+        soup = BeautifulSoup(response.text, "html.parser")
+        # 获取书名、价格和评分
+        books_name=soup.select("li.col-xs-6.col-sm-4.col-md-3.col-lg-3 h3 a")
+        books_price=soup.select("p.price_color")
+        books_star=soup.select("p.star-rating")
+        for i in range(len(books_name)):
+            book={
+                "书名":books_name[i].attrs["title"],#attrs["title"]获取a标签的title属性
+                "价格":books_price[i].text,
+                "评分":books_star[i].attrs["class"][1]
+            }
+            books.append(book)
+            print(book)
+            print("*"*50)
+    except requests.RequestException as e:
+        print(f"请求页面{i}时发生错误:{e}")
+    except Exception as e:
+        print(f"解析页面{i}时发生错误:{e}")
+    time.sleep(1)
+
+df=pd.DataFrame(books)
+df.to_excel("books.xlsx",index=False,engine="openpyxl")#保存数据到Excel文件#engine='openpyxl' 指定使用 openpyxl 引擎来写入 Excel 文件。
+#index=False 表示不将 DataFrame 的索引写入 Excel 文件。
+print("数据保存成功")
