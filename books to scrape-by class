@@ -1,0 +1,79 @@
+import requests
+from bs4 import BeautifulSoup
+import pandas as pd
+import time
+import random
+url = "https://books.toscrape.com/"
+headers = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36"
+}
+response = requests.get(url=url, headers=headers)
+response.encoding = "utf-8"
+catalog_list = []
+soup = BeautifulSoup(response.text, "html.parser")
+catalog = soup.select("ul.nav.nav-list>li>ul>li>a")
+for i in catalog:
+    url = i.get("href")#获取每个书类的链接
+    # print(i.text.strip(), "                    https://books.toscrape.com/"+url)
+    url1="https://books.toscrape.com/"+url
+    response1 = requests.get(url=url1, headers=headers)
+    response1.encoding = "utf-8"
+    soup1 = BeautifulSoup(response1.text, "html.parser")
+    
+    #利用CSS选择器获取书名，价格，评分
+    books_name=soup1.select("li.col-xs-6.col-sm-4.col-md-3.col-lg-3 h3 a")
+    books_price=soup1.select("p.price_color")
+    books_star=soup1.select("p.star-rating")
+    #循环获取每本书的详细信息
+    books=[]
+    if soup1.select("li.next"):
+        suffix="index.html"
+        url1=url1[:-len(suffix)]
+        for j in range(1, 11):
+            url2=url1+"page-"+str(j)+".html"
+            try:
+                response2 = requests.get(url=url2, headers=headers,timeout=10)
+                response2.encoding = "utf-8"
+                soup2 = BeautifulSoup(response2.text, "html.parser")
+                books_name=soup2.select("li.col-xs-6.col-sm-4.col-md-3.col-lg-3 h3 a")
+                books_price=soup2.select("p.price_color")
+                books_star=soup2.select("p.star-rating")
+                for k in range(len(books_name)):
+                    book={
+                        "书名":books_name[k].attrs["title"],#attrs["title"]获取a标签的title属性
+                        "价格":books_price[k].text,
+                        "评分":books_star[k].attrs["class"][1]
+                    }
+                    print(book)
+                    print("*"*50)
+                    books.append(book)
+            except requests.RequestException as e:
+                print(f"请求失败: {e}")
+                break
+            except Exception as e:
+                print(f"解析失败: {e}")
+                break
+            time.sleep(random.uniform(1, 3))
+    else:
+        for k in range(len(books_name)):
+            book={
+                "书名":books_name[k].attrs["title"],#attrs["title"]获取a标签的title属性
+                "价格":books_price[k].text,
+                "评分":books_star[k].attrs["class"][1]
+            }
+            print(book)
+            print("*"*50)
+            books.append(book)
+        
+    catalog_list.append({"class": i.text.strip(), "books": books})
+    time.sleep(random.uniform(1, 3))
+
+flattened_list = []
+for catalog in catalog_list:
+    catagory=catalog["class"]
+    for book in catalog["books"]:
+        flattened_list.append({"类别":catagory,**book})
+df=pd.DataFrame(flattened_list)
+df.to_excel("books_plus.xlsx",index=False,engine="openpyxl")#保存数据到Excel文件#engine='openpyxl' 指定使用 openpyxl 引擎来写入 Excel 文件。
+#index=False 表示不将 DataFrame 的索引写入 Excel 文件。
+print("数据保存成功")
